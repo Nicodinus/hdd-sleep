@@ -1,0 +1,12 @@
+[Unit]
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Restart=no
+Type=exec
+ExecStart=php run.php
+TimeoutStartSec=10
+
+[Install]
+WantedBy=multi-user.target
