@@ -2,6 +2,7 @@
 
 define('STANDBY_TIMEOUT', 600);
 define('UPDATE_INTERVAL', 10);
+define('CHECK_STATUS_UPDATE_INTERVAL', 60);
 define('UPDATE_INTERVAL_THRESHOLD', 30);
 define('APP_PATH', __DIR__);
 
@@ -72,7 +73,7 @@ foreach (DiskCollector::fetchOnly('hdd') as $blockDeviceStruct) {
 
     $isEpcAvailable = DiskCollector::checkEpc("/dev/{$blockDevice}") !== false;
 
-    $monitor = new DiskMonitor($blockDevice, UPDATE_INTERVAL);
+    $monitor = new DiskMonitor($blockDevice, UPDATE_INTERVAL, CHECK_STATUS_UPDATE_INTERVAL);
     $logger->info("monitor initialized for block device {$blockDevice}" . ($isEpcAvailable ? ", epc is available" : ""));
 
     $currentStatus = DiskCollector::checkStatus("/dev/{$blockDevice}");

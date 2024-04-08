@@ -16,44 +16,45 @@ class DiskMonitor
     /** @var int|float|null */
     private int|float|null $lastUpdated;
 
-    /** @var float */
-    private float $updateInterval;
-
     /** @var int|float|null */
     private int|float|null $lastActivity;
 
     /** @var int|null */
     private ?int $lastStatCounter;
 
-    /** @var string */
-    private string $watcher;
+    /** @var string[] */
+    private array $watchers;
 
     /** @var callable[] $callbacks */
-    private $callbacks;
+    private array $callbacks;
 
     //
 
     /**
      * @param string $blockDevice /sys/block/NAME
-     * @param float $updateInterval ms
+     * @param float $updateInterval seconds
+     * @param float $checkStatusUpdateInterval seconds
      */
-    public function __construct(string $blockDevice, float $updateInterval = 1)
+    public function __construct(string $blockDevice, float $updateInterval = 10, float $checkStatusUpdateInterval = 60)
     {
         $this->blockDevice = $blockDevice;
 
         if ($updateInterval < 0.001) {
             throw new \InvalidArgumentException("Update interval cannot be less than 1 ms");
         }
-        $this->updateInterval = $updateInterval;
 
         $this->lastUpdated = null;
         $this->lastActivity = null;
         $this->lastStatCounter = null;
 
         $this->callbacks = [];
+        $this->watchers = [];
 
-        $this->watcher = EventLoop::repeat($this->updateInterval, $this->_monitorHandle(...));
-        EventLoop::unreference($this->watcher);
+        $this->watchers[] = EventLoop::repeat($updateInterval, $this->_monitorBlockStatHandle(...));
+        $this->watchers[] = EventLoop::repeat($checkStatusUpdateInterval, $this->_monitorCheckStatusHandle(...));
+        foreach ($this->watchers as $watcher) {
+            EventLoop::unreference($watcher);
+        }
     }
 
     /**
@@ -61,7 +62,10 @@ class DiskMonitor
      */
     public function __destruct()
     {
-        EventLoop::cancel($this->watcher);
+        foreach ($this->watchers as $watcher) {
+            EventLoop::unreference($watcher);
+        }
+        $this->watchers = [];
     }
 
     /**
@@ -92,7 +96,7 @@ class DiskMonitor
     /**
      * @return void
      */
-    protected function _monitorHandle(): void
+    protected function _monitorBlockStatHandle(): void
     {
         $statCounter = 0;
         // @see https://www.infradead.org/~mchehab/kernel_docs/admin-guide/iostats.html
@@ -128,6 +132,26 @@ class DiskMonitor
     }
 
     /**
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    protected function _monitorCheckStatusHandle(): void
+    {
+        $currentStatus = DiskCollector::checkStatus("/dev/{$this->blockDevice}");
+        if ($currentStatus === "standby z") {
+            return;
+        }
+
+        $futures = [];
+        foreach ($this->callbacks as $callback) {
+            $futures[] = async($callback, $this);
+        }
+
+        await($futures);
+    }
+
+    /**
      * @return string
      */
     public function getBlockDevice(): string
@@ -141,14 +165,6 @@ class DiskMonitor
     public function getLastUpdated(): int|float|null
     {
         return $this->lastUpdated;
-    }
-
-    /**
-     * @return float
-     */
-    public function getUpdateInterval(): float
-    {
-        return $this->updateInterval;
     }
 
     /**
