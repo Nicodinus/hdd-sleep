@@ -155,6 +155,33 @@ class DiskCollector
     }
 
     /**
+     * @param string $devicePath
+     *
+     * @return bool
+     *
+     * @throws BufferException
+     * @throws ProcessException
+     * @throws SerializationException
+     */
+    public static function checkIsDeviceTestRunning(string $devicePath): bool
+    {
+        $process = Process::start("smartctl -j -c {$devicePath}");
+
+        //ByteStream\pipe($process->getStdout(), ByteStream\getStdout());
+        ByteStream\pipe($process->getStderr(), ByteStream\getStderr());
+
+        $stdout = ByteStream\buffer($process->getStdout());
+        $stderr = ByteStream\buffer($process->getStderr());
+
+        $code = $process->join();
+        if ($code !== 0) {
+            throw new \RuntimeException("check status error: {$stderr}");
+        }
+
+        return isset(JsonSerializer::withAssociativeArrays()->unserialize($stdout)['ata_smart_data']['self_test']['status']['remaining_percent']);
+    }
+
+    /**
      * @param string $blockDevice
      *
      * @return array

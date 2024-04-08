@@ -42,6 +42,11 @@ $forceStandbyModeCallable = static function (DiskMonitor $monitor, bool $isEpcAv
         return;
     }
 
+    if (DiskCollector::checkIsDeviceTestRunning("/dev/{$monitor->getBlockDevice()}")) {
+        $logger->debug("{$monitor->getBlockDevice()} device has self-test in progress, no standby will preform");
+        return;
+    }
+
     $logger->info("{$monitor->getBlockDevice()} force standby mode ". ($isEpcAvailable ? "(wdepc)" : "(hdparm)"));
 
     async(static function ($dev) use (&$isEpcAvailable) {
@@ -84,6 +89,11 @@ foreach (DiskCollector::fetchOnly('hdd') as $blockDeviceStruct) {
         if (isset($watchers[$monitor->getBlockDevice()])) {
             EventLoop::cancel($watchers[$monitor->getBlockDevice()]);
             unset($watchers[$monitor->getBlockDevice()]);
+        }
+
+        if (DiskCollector::checkIsDeviceTestRunning("/dev/{$monitor->getBlockDevice()}")) {
+            $logger->debug("{$monitor->getBlockDevice()} device has self-test in progress, no standby will preform");
+            return;
         }
 
         $watchers[$monitor->getBlockDevice()] = EventLoop::delay(UPDATE_INTERVAL_THRESHOLD, static function () use ($monitor, $isEpcAvailable, &$logger, &$watchers, &$forceStandbyModeCallable) {
