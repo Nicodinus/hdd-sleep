@@ -1,6 +1,6 @@
 {
   "name": "nicodinus/php-hdd-sleep",
-  "type": "lib",
+  "type": "project",
   "license": "MIT",
   "version": "0.0.1",
   "authors": [
